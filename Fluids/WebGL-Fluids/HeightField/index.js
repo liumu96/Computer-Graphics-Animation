@@ -59,22 +59,22 @@ class WaterSurface {
       }
     }
 
-    var index = new Uint32Array((this.numX - 1) * (this.numZ - 1) * 2 * 3);
+    let index = new Uint32Array((this.numX - 1) * (this.numZ - 1) * 2 * 3);
     let pos = 0;
     for (let i = 0; i < this.numX - 1; i++) {
       for (let j = 0; j < this.numZ - 1; j++) {
-        let id0 = i * this.numZ + j;
-        let id1 = i * this.numZ + j + 1;
-        let id2 = (i + 1) * this.numZ + j + 1;
-        let id3 = (i + 1) * this.numZ + j;
+        let id0 = i * this.numZ + j; // (i, j)
+        let id1 = i * this.numZ + j + 1; // (i, j + 1)
+        let id2 = (i + 1) * this.numZ + j + 1; // (i + 1, j + 1)
+        let id3 = (i + 1) * this.numZ + j; // (i + 1, j)
 
-        index[pos++] = id0;
-        index[pos++] = id1;
-        index[pos++] = id2;
+        index[pos++] = id0; // (i, j)
+        index[pos++] = id1; // (i, j + 1)
+        index[pos++] = id2; // (i + 1, j + 1)
 
-        index[pos++] = id0;
-        index[pos++] = id2;
-        index[pos++] = id3;
+        index[pos++] = id0; // (i, j)
+        index[pos++] = id2; // (i + 1, j + 1)
+        index[pos++] = id3; // (i + 1, j)
       }
     }
     var geometry = new THREE.BufferGeometry();
@@ -104,7 +104,7 @@ class WaterSurface {
       let pos = ball.pos;
       let br = ball.radius;
       let h2 = this.spacing * this.spacing;
-
+      // grids intersect with the ball
       let x0 = Math.max(0, cx + Math.floor((pos.x - br) * h1));
       let x1 = Math.min(this.numX - 1, cx + Math.floor((pos.x + br) * h1));
       let z0 = Math.max(0, cz + Math.floor((pos.z - br) * h1));
@@ -114,6 +114,7 @@ class WaterSurface {
         for (let zi = z0; zi < z1; zi++) {
           let x = (xi - cx) * this.spacing;
           let z = (zi - cz) * this.spacing;
+          // the distance between the current grid and the ball center
           let r2 = (pos.x - x) * (pos.x - x) + (pos.z - z) * (pos.z - z);
           if (r2 < br * br) {
             let bodyHalfHeight = Math.sqrt(br * br - r2);
