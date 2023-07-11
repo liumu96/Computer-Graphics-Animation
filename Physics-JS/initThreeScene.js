@@ -59,7 +59,7 @@ function initThreeScene() {
   renderer = new THREE.WebGLRenderer();
   renderer.shadowMap.enabled = true;
   renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.setSize(0.8 * window.innerWidth, 0.8 * window.innerHeight);
+  renderer.setSize(window.innerWidth, window.innerHeight);
   window.addEventListener("resize", onWindowResize, false);
   container.appendChild(renderer.domElement);
 
