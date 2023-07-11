@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cannon Ball 3D</title>
+    <style>
+      body {
+        font-family: verdana;
+        font-size: 15px;
+      }
+      .button {
+        background-color: #606060;
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Cannon Ball 3D</h1>
+    <button id="buttonRun" onclick="run()" class="button">Run</button>
+    <button onclick="restart()" class="button">Restart</button>
+    <br /><br />
+    <div id="container"></div>
+    <script src="https://unpkg.com/three@0.139.2/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.139.2/examples/js/controls/OrbitControls.js"></script>
+    <script src="./initThreeScene.js"></script>
+    <script>
+      // physics scene
+
+      const physicsScene = {
+        gravity: new THREE.Vector3(0.0, -10.0, 0.0),
+        dt: 1.0 / 60.0,
+        worldSize: { x: 1.5, z: 2.5 },
+        paused: true,
+        objects: [],
+      };
+
+      //   Ball
+      class Ball {
+        constructor(pos, radius, vel, scene) {
+          // physics data
+          this.pos = pos;
+          this.radius = radius;
+          this.vel = vel;
+
+          // visual mesh
+          const geometry = new THREE.SphereGeometry(radius, 32, 32);
+          const material = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+          this.visMesh = new THREE.Mesh(geometry, material);
+          this.visMesh.position.copy(pos);
+          threeScene.add(this.visMesh);
+        }
+        simulate() {
+          this.vel.addScaledVector(physicsScene.gravity, physicsScene.dt);
+          this.pos.addScaledVector(this.vel, physicsScene.dt);
+
+          if (this.pos.x < -physicsScene.worldSize.x) {
+            this.pos.x = -physicsScene.worldSize.x;
+            this.vel.x = -this.vel.x;
+          }
+          if (this.pos.x > physicsScene.worldSize.x) {
+            this.pos.x = physicsScene.worldSize.x;
+            this.vel.x = -this.vel.x;
+          }
+          if (this.pos.z < -physicsScene.worldSize.z) {
+            this.pos.z = -physicsScene.worldSize.z;
+            this.vel.z = -this.vel.z;
+          }
+          if (this.pos.z > physicsScene.worldSize.z) {
+            this.pos.z = physicsScene.worldSize.z;
+            this.vel.z = -this.vel.z;
+          }
+          if (this.pos.y < this.radius) {
+            this.pos.y = this.radius;
+            this.vel.y = -this.vel.y;
+          }
+
+          this.visMesh.position.copy(this.pos);
+        }
+      }
+
+      // initPhysics
+      function initPhysics(scene) {
+        const radius = 0.2;
+        const pos = new THREE.Vector3(radius, radius, radius);
+        const vel = new THREE.Vector3(2.0, 5.0, 3.0);
+
+        physicsScene.objects.push(new Ball(pos, radius, vel, scene));
+      }
+
+      // simulate
+      function simulate() {
+        if (physicsScene.paused) return;
+        for (let i = 0; i < physicsScene.objects.length; i++) {
+          physicsScene.objects[i].simulate();
+        }
+      }
+
+      // button function
+      function run() {
+        const button = document.getElementById("buttonRun");
+        if (physicsScene.paused) button.innerHTML = "stop";
+        else button.innerHTML = "Run";
+        physicsScene.paused = !physicsScene.paused;
+      }
+
+      function restart() {
+        location.reload();
+      }
+      // render update
+      function update() {
+        simulate();
+        renderer.render(threeScene, camera);
+        cameraControl.update();
+        requestAnimationFrame(update);
+      }
+
+      initPhysics();
+      update();
+    </script>
+  </body>
+</html>
