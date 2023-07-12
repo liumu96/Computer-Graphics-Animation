@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Constrained Dynamics</title>
+    <style>
+      body {
+        font-family: verdana;
+        font-size: 15px;
+      }
+      .button {
+        background-color: #606060;
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <button class="button" onclick="setupScene()">Restart</button>
+    <br />
+
+    <canvas id="myCanvas"></canvas>
+    <script src="./Vector2.js"></script>
+    <script>
+      // init canvas
+      const canvas = document.getElementById("myCanvas");
+      const c = canvas.getContext("2d");
+
+      canvas.width = window.innerWidth - 20;
+      canvas.height = window.innerHeight - 100;
+
+      const simMinWidth = 2.0;
+      const cScale = Math.min(canvas.width, canvas.height) / simMinWidth;
+      const simWidth = canvas.width / cScale;
+      const simHeight = canvas.height / cScale;
+
+      function cX(pos) {
+        return pos.x * cScale;
+      }
+
+      function cY(pos) {
+        return canvas.height - pos.y * cScale;
+      }
+
+      //   physics Scene quatity
+      const physicsScene = {
+        gravity: new Vector2(0.0, -10.0),
+        dt: 1.0 / 60.0,
+        numSteps: 100,
+        wireCenter: new Vector2(),
+        wireRadius: 0.0,
+        beads: [],
+      };
+
+      //   Bead Object
+      class Bead {
+        constructor(radius, mass, pos) {
+          this.radius = radius;
+          this.mass = mass;
+          this.pos = pos.clone();
+          this.prevPos = pos.clone();
+          this.vel = new Vector2();
+        }
+
+        startStep(dt, gravity) {
+          this.vel.add(gravity, dt);
+          this.prevPos.set(this.pos);
+          this.pos.add(this.vel, dt);
+        }
+
+        keepOnWire(center, radius) {
+          const dir = new Vector2();
+          dir.subtractVectors(this.pos, center);
+          const len = dir.length();
+          if (len == 0.0) return;
+          dir.scale(1.0 / len);
+          const lambda = physicsScene.wireRadius - len;
+          this.pos.add(dir, lambda);
+          return lambda;
+        }
+
+        endStep(dt) {
+          this.vel.subtractVectors(this.pos, this.prevPos);
+          this.vel.scale(1.0 / dt);
+        }
+      }
+
+      //   setup scene
+      function setupScene() {
+        physicsScene.paused = true;
+
+        physicsScene.wireCenter.x = simWidth / 2.0;
+        physicsScene.wireCenter.y = simHeight / 2.0;
+        physicsScene.wireRadius = simMinWidth * 0.4;
+
+        const numBeads = 5;
+        const mass = 1.0;
+
+        let r = 0.1;
+        let angle = 0.0;
+
+        for (let i = 0; i < numBeads; i++) {
+          const mass = Math.PI * r * r;
+          const pos = new Vector2(
+            physicsScene.wireCenter.x +
+              physicsScene.wireRadius * Math.cos(angle),
+            physicsScene.wireCenter.y +
+              physicsScene.wireRadius * Math.sin(angle)
+          );
+
+          physicsScene.beads.push(new Bead(r, mass, pos));
+          angle += Math.PI / numBeads;
+          r = 0.05 + Math.random() * 0.1;
+        }
+      }
+
+      // draw
+      function drawCircle(pos, radius, filled) {
+        c.beginPath();
+        c.arc(cX(pos), cY(pos), cScale * radius, 0.0, 2.0 * Math.PI);
+        c.closePath();
+        if (filled) c.fill();
+        else c.stroke();
+      }
+
+      function draw() {
+        c.clearRect(0, 0, canvas.width, canvas.height);
+
+        c.fillStyle = "#FF0000";
+        c.lineWidth = 2.0;
+        drawCircle(physicsScene.wireCenter, physicsScene.wireRadius, false);
+
+        c.fillStyle = "#FF0000";
+
+        for (let i = 0; i < physicsScene.beads.length; i++) {
+          const bead = physicsScene.beads[i];
+          drawCircle(bead.pos, bead.radius, true);
+        }
+      }
+
+      //   collision handling
+      function handleBeadBeadCollision(bead1, bead2) {
+        const restitution = 1.0;
+        const dir = new Vector2();
+        dir.subtractVectors(bead2.pos, bead1.pos);
+        const d = dir.length();
+        if (d == 0.0 || d > bead1.radius + bead2.radius) return;
+
+        dir.scale(1.0 / d);
+
+        const corr = (bead1.radius + bead2.radius - d) / 2.0;
+        bead1.pos.add(dir, -corr);
+        bead2.pos.add(dir, corr);
+
+        const v1 = bead1.vel.dot(dir);
+        const v2 = bead2.vel.dot(dir);
+
+        const m1 = bead1.mass;
+        const m2 = bead2.mass;
+
+        const newV1 =
+          (m1 * v1 + m2 * v2 - m2 * (v1 - v2) * restitution) / (m1 + m2);
+        const newV2 =
+          (m1 * v1 + m2 * v2 - m1 * (v2 - v1) * restitution) / (m1 + m2);
+
+        bead1.vel.add(dir, newV1 - v1);
+        bead2.vel.add(dir, newV2 - v2);
+      }
+
+      // simulate
+      function simulate() {
+        const sdt = physicsScene.dt / physicsScene.numSteps;
+
+        for (let step = 0; step < physicsScene.numSteps; step++) {
+          for (let i = 0; i < physicsScene.beads.length; i++) {
+            physicsScene.beads[i].startStep(sdt, physicsScene.gravity);
+          }
+          for (let i = 0; i < physicsScene.beads.length; i++) {
+            physicsScene.beads[i].keepOnWire(
+              physicsScene.wireCenter,
+              physicsScene.wireRadius
+            );
+          }
+          for (var i = 0; i < physicsScene.beads.length; i++)
+            physicsScene.beads[i].endStep(sdt);
+
+          for (var i = 0; i < physicsScene.beads.length; i++) {
+            for (var j = 0; j < i; j++) {
+              handleBeadBeadCollision(
+                physicsScene.beads[i],
+                physicsScene.beads[j]
+              );
+            }
+          }
+        }
+      }
+
+      function update() {
+        simulate();
+        draw();
+        requestAnimationFrame(update);
+      }
+
+      setupScene();
+      update();
+    </script>
+  </body>
+</html>
