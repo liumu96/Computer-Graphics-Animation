@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pinball</title>
+    <style>
+      body {
+        font-family: verdana;
+        font-size: 15px;
+      }
+      .button {
+        background-color: #606060;
+        border: none;
+        color: white;
+        padding: 10px 32px;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <button class="button" onclick="setupScene()">Restart</button>
+    Score <span id="score">0</span>
+    <br />
+    <canvas id="myCanvas"></canvas>
+    <script src="./Vector2.js"></script>
+    <script>
+      const canvas = document.getElementById("myCanvas");
+      const c = canvas.getContext("2d");
+
+      canvas.width = window.innerWidth - 20;
+      canvas.height = window.innerHeight - 100;
+
+      const flipperHeight = 1.5;
+
+      const cScale = canvas.height / flipperHeight;
+      const simWidth = canvas.width / cScale;
+      const simHeight = canvas.height / cScale;
+
+      function cX(pos) {
+        return pos.x * cScale;
+      }
+
+      function cY(pos) {
+        return canvas.height - pos.y * cScale;
+      }
+
+      //  find the closest point on a line
+      function closestPointOnSegment(p, a, b) {
+        const ab = new Vector2();
+        ab.subtractVectors(b, a);
+        let t = ab.dot(ab);
+        if (t == 0.0) return a.clone();
+        t = Math.max(0.0, Math.min(1.0, (p.dot(ab) - a.dot(ab)) / t));
+        const closest = a.clone();
+        return closest.add(ab, t);
+      }
+
+      //   physics object
+      class Ball {
+        constructor(radius, mass, pos, vel, restitution) {
+          this.radius = radius;
+          this.mass = mass;
+          this.restitution = restitution;
+          this.pos = pos.clone();
+          this.vel = vel.clone();
+        }
+        simulate(dt, gravity) {
+          this.vel.add(gravity, dt);
+          this.pos.add(this.vel, dt);
+        }
+      }
+
+      class Obstacle {
+        constructor(radius, pos, pushVel) {
+          this.radius = radius;
+          this.pos = pos.clone();
+          this.pushVel = pushVel;
+        }
+      }
+
+      class Flipper {
+        constructor(
+          radius,
+          pos,
+          length,
+          restAngle,
+          maxRotation,
+          angularVelocity,
+          restitution
+        ) {
+          // fixed
+          this.radius = radius;
+          this.pos = pos.clone();
+          this.length = length;
+          this.restAngle = restAngle;
+          this.maxRotation = Math.abs(maxRotation);
+          this.sign = Math.sign(maxRotation);
+          this.angularVelocity = angularVelocity;
+          // changing
+          this.rotation = 0.0;
+          this.currentAngularVelocity = 0.0;
+          this.touchIdentifier = null;
+        }
+
+        simulate(dt) {
+          const prevRotation = this.rotation;
+          const pressed = this.touchIdentifier !== null;
+          if (pressed) {
+            this.rotation = Math.min(
+              this.rotation + dt * this.angularVelocity,
+              this.maxRotation
+            );
+          } else {
+            this.rotation = Math.max(
+              this.rotation - dt * this.angularVelocity,
+              0.0
+            );
+          }
+          this.currentAngularVelocity =
+            (this.sign * (this.rotation - prevRotation)) / dt;
+        }
+
+        select(pos) {
+          const d = new Vector2();
+          d.subtractVectors(this.pos, pos);
+          return d.length() < this.length;
+        }
+
+        getTip() {
+          const angle = this.restAngle + this.sign * this.rotation;
+          const dir = new Vector2(Math.cos(angle), Math.sin(angle));
+          const tip = this.pos.clone();
+          return tip.add(dir, this.length);
+        }
+      }
+      //   physics scene
+      const physicsScene = {
+        gravity: new Vector2(0.0, -3.0),
+        dt: 1.0 / 60.0,
+        score: 0,
+        paused: true,
+        border: [],
+        balls: [],
+        obstacles: [],
+        flippers: [],
+      };
+      // setup scene
+      function setupScene() {
+        const offset = 0.02;
+        physicsScene.score = 0;
+
+        // border
+        {
+          physicsScene.border.push(new Vector2(0.74, 0.25));
+          physicsScene.border.push(new Vector2(1.0 - offset, 0.4));
+          physicsScene.border.push(
+            new Vector2(1.0 - offset, flipperHeight - offset)
+          );
+          physicsScene.border.push(new Vector2(offset, flipperHeight - offset));
+          physicsScene.border.push(new Vector2(offset, 0.4));
+          physicsScene.border.push(new Vector2(0.26, 0.25));
+          physicsScene.border.push(new Vector2(0.26, 0.0));
+          physicsScene.border.push(new Vector2(0.74, 0.0));
+        }
+
+        // ball
+        {
+          physicsScene.balls = [];
+          const radius = 0.03;
+          const mass = Math.PI * radius * radius;
+          let pos = new Vector2(0.92, 0.5);
+          let vel = new Vector2(-0.2, 3.5);
+          physicsScene.balls.push(new Ball(radius, mass, pos, vel, 0.2));
+
+          pos = new Vector2(0.08, 0.5);
+          vel = new Vector2(0.2, 3.5);
+          physicsScene.balls.push(new Ball(radius, mass, pos, vel, 0.2));
+        }
+
+        // obstacles
+        {
+          physicsScene.obstacles = [];
+          const numObstacles = 4;
+
+          physicsScene.obstacles.push(
+            new Obstacle(0.1, new Vector2(0.25, 0.6), 2.0)
+          );
+          physicsScene.obstacles.push(
+            new Obstacle(0.1, new Vector2(0.75, 0.5), 2.0)
+          );
+          physicsScene.obstacles.push(
+            new Obstacle(0.12, new Vector2(0.7, 1.0), 2.0)
+          );
+          physicsScene.obstacles.push(
+            new Obstacle(0.1, new Vector2(0.2, 1.2), 2.0)
+          );
+        }
+
+        // flippers
+        {
+          const radius = 0.03;
+          const length = 0.2;
+          const maxRotation = 1.0;
+          const restAngle = 0.5;
+          const angularVelocity = 10.0;
+          const restitution = 0.0;
+
+          const pos1 = new Vector2(0.26, 0.22);
+          const pos2 = new Vector2(0.74, 0.22);
+
+          physicsScene.flippers.push(
+            new Flipper(
+              radius,
+              pos1,
+              length,
+              -restAngle,
+              maxRotation,
+              angularVelocity,
+              restitution
+            )
+          );
+          physicsScene.flippers.push(
+            new Flipper(
+              radius,
+              pos2,
+              length,
+              Math.PI + restAngle,
+              -maxRotation,
+              angularVelocity,
+              restitution
+            )
+          );
+        }
+      }
+
+      //   draw
+      function drawDisc(x, y, radius) {
+        c.beginPath();
+        c.arc(x, y, radius, 0.0, 2.0 * Math.PI);
+        c.closePath();
+        c.fill();
+      }
+
+      function draw() {
+        c.clearRect(0, 0, canvas.width, canvas.height);
+
+        // border
+        if (physicsScene.border.length >= 2) {
+          c.strokeStyle = "#000000";
+          c.lineWidth = 5;
+
+          c.beginPath();
+          let v = physicsScene.border[0];
+          c.moveTo(cX(v), cY(v));
+          for (let i = 0; i < physicsScene.border.length; i++) {
+            v = physicsScene.border[(i + 1) % physicsScene.border.length];
+            c.lineTo(cX(v), cY(v));
+          }
+          c.stroke();
+          c.lineWidth = 1;
+        }
+
+        // balls
+        c.fillStyle = "#202020";
+        for (let i = 0; i < physicsScene.balls.length; i++) {
+          const ball = physicsScene.balls[i];
+          drawDisc(cX(ball.pos), cY(ball.pos), ball.radius * cScale);
+        }
+
+        // obstacles
+        c.fillStyle = "#FF8000";
+        for (let i = 0; i < physicsScene.obstacles.length; i++) {
+          const obstacle = physicsScene.obstacles[i];
+          drawDisc(
+            cX(obstacle.pos),
+            cY(obstacle.pos),
+            obstacle.radius * cScale
+          );
+        }
+
+        // flippers
+        c.fillStyle = "#FF0000";
+
+        for (let i = 0; i < physicsScene.flippers.length; i++) {
+          const flipper = physicsScene.flippers[i];
+          c.translate(cX(flipper.pos), cY(flipper.pos));
+          c.rotate(-flipper.restAngle - flipper.sign * flipper.rotation);
+
+          c.fillRect(
+            0.0,
+            -flipper.radius * cScale,
+            flipper.length * cScale,
+            2.0 * flipper.radius * cScale
+          );
+          drawDisc(0, 0, flipper.radius * cScale);
+          drawDisc(flipper.length * cScale, 0, flipper.radius * cScale);
+          c.resetTransform();
+        }
+      }
+
+      //   collision handling
+      function handleBallBallCollision(ball1, ball2) {
+        const restitution = Math.min(ball1.restitution, ball2.restitution);
+        const dir = new Vector2();
+        dir.subtractVectors(ball2.pos, ball1.pos);
+        const d = dir.length();
+        if (d == 0.0 || d > ball1.radius + ball2.radius) return;
+
+        dir.scale(1.0 / d);
+
+        const corr = (ball1.radius + ball2.radius - d) / 2.0;
+        ball1.pos.add(dir, -corr);
+        ball2.pos.add(dir, corr);
+
+        const v1 = ball1.vel.dot(dir);
+        const v2 = ball2.vel.dot(dir);
+
+        const m1 = ball1.mass;
+        const m2 = ball2.mass;
+
+        const newV1 =
+          (m1 * v1 + m2 * v2 - m2 * (v1 - v2) * restitution) / (m1 + m2);
+        const newV2 =
+          (m1 * v1 + m2 * v2 - m1 * (v2 - v1) * restitution) / (m1 + m2);
+
+        ball1.vel.add(dir, newV1 - v1);
+        ball2.vel.add(dir, newV2 - v2);
+      }
+
+      function handleBallObstacleCollision(ball, obstacle) {
+        const dir = new Vector2();
+        dir.subtractVectors(ball.pos, obstacle.pos);
+        const d = dir.length();
+        if (d == 0.0 || d > ball.radius + obstacle.radius) return;
+
+        dir.scale(1.0 / d);
+
+        const corr = ball.radius + obstacle.radius - d;
+        ball.pos.add(dir, corr);
+
+        const v = ball.vel.dot(dir);
+        ball.vel.add(dir, obstacle.pushVel - v);
+
+        physicsScene.score++;
+      }
+
+      function handleBallFlipperCollision(ball, flipper) {
+        const closest = closestPointOnSegment(
+          ball.pos,
+          flipper.pos,
+          flipper.getTip()
+        );
+
+        const dir = new Vector2();
+        dir.subtractVectors(ball.pos, closest);
+        const d = dir.length();
+        if (d == 0.0 || d > ball.radius + flipper.radius) return;
+
+        dir.scale(1.0 / d);
+
+        const corr = ball.radius + flipper.radius - d;
+        ball.pos.add(dir, corr);
+
+        // update velocity
+        const radius = closest.clone();
+        radius.add(dir, flipper.radius);
+        radius.subtract(flipper.pos);
+        const surfaceVel = radius.perp();
+        surfaceVel.scale(flipper.currentAngularVelocity);
+
+        const v = ball.vel.dot(dir);
+        const vnew = surfaceVel.dot(dir);
+
+        ball.vel.add(dir, vnew - v);
+      }
+
+      function handleBallBorderCollision(ball, border) {
+        if (border.length < 3) return;
+
+        // find closest segment
+        const d = new Vector2();
+        const closest = new Vector2();
+        const ab = new Vector2();
+        let normal;
+
+        let minDist = 0.0;
+
+        for (let i = 0; i < border.length; i++) {
+          const a = border[i];
+          const b = border[(i + 1) % border.length];
+          const c = closestPointOnSegment(ball.pos, a, b);
+          d.subtractVectors(ball.pos, c);
+          const dist = d.length();
+          if (i == 0 || dist < minDist) {
+            minDist = dist;
+            closest.set(c);
+            ab.subtractVectors(b, a);
+            normal = ab.perp();
+          }
+        }
+
+        // push out
+        d.subtractVectors(ball.pos, closest);
+        const dist = d.length();
+        if (dist == 0.0) {
+          d.set(normal);
+          dist = normal.length();
+        }
+        d.scale(1.0 / dist);
+
+        if (d.dot(normal) >= 0.0) {
+          if (dist > ball.radius) return;
+          ball.pos.add(d, ball.radius - dist);
+        } else {
+          ball.pos.add(d, -(dist + ball.radius));
+        }
+
+        // update velocity
+        const v = ball.vel.dot(d);
+        const vnew = Math.abs(v) * ball.restitution;
+
+        ball.vel.add(d, vnew - v);
+      }
+
+      function simulate() {
+        for (let i = 0; i < physicsScene.flippers.length; i++) {
+          physicsScene.flippers[i].simulate(physicsScene.dt);
+        }
+
+        for (let i = 0; i < physicsScene.balls.length; i++) {
+          const ball = physicsScene.balls[i];
+          ball.simulate(physicsScene.dt, physicsScene.gravity);
+
+          for (let j = i + 1; j < physicsScene.balls.length; j++) {
+            const ball2 = physicsScene.balls[j];
+            handleBallBallCollision(ball, ball2, physicsScene.restitution);
+          }
+
+          for (let j = 0; j < physicsScene.obstacles.length; j++)
+            handleBallObstacleCollision(ball, physicsScene.obstacles[j]);
+
+          for (let j = 0; j < physicsScene.flippers.length; j++)
+            handleBallFlipperCollision(ball, physicsScene.flippers[j]);
+
+          handleBallBorderCollision(ball, physicsScene.border);
+        }
+      }
+
+      function update() {
+        simulate();
+        draw();
+        document.getElementById("score").innerHTML =
+          physicsScene.score.toString();
+        requestAnimationFrame(update);
+      }
+
+      setupScene();
+      update();
+
+      //   user interaction
+
+      canvas.addEventListener("touchstart", onTouchStart, false);
+      canvas.addEventListener("touchend", onTouchEnd, false);
+
+      canvas.addEventListener("mousedown", onMouseDown, false);
+      canvas.addEventListener("mouseup", onMouseUp, false);
+
+      function onTouchStart(event) {
+        for (let i = 0; i < event.touches.length; i++) {
+          const touch = event.touches[i];
+
+          const rect = canvas.getBoundingClientRect();
+          const touchPos = new Vector2(
+            (touch.clientX - rect.left) / cScale,
+            simHeight - (touch.clientY - rect.top) / cScale
+          );
+
+          for (let j = 0; j < physicsScene.flippers.length; j++) {
+            const flipper = physicsScene.flippers[j];
+            if (flipper.select(touchPos)) {
+              flipper.touchIdentifier = touch.identifier;
+            } else {
+              flipper.touchIdentifier = null;
+            }
+          }
+        }
+      }
+
+      function onTouchEnd(event) {
+        for (let i = 0; i < physicsScene.flippers.length; i++) {
+          const flipper = physicsScene.flippers[i];
+          if (flipper.touchIdentifier == null) continue;
+
+          const found = false;
+          for (let j = 0; j < event.touches.length; j++) {
+            if (event.touches[j].touchIdentifier == flipper.touchIdentifier) {
+              found = true;
+            }
+          }
+
+          if (!found) flipper.touchIdentifier = null;
+        }
+      }
+
+      function onMouseDown(event) {
+        const rect = canvas.getBoundingClientRect();
+        const mousePos = new Vector2(
+          (event.clientX - rect.left) / cScale,
+          simHeight - (event.clientY - rect.top) / cScale
+        );
+
+        for (let j = 0; j < physicsScene.flippers.length; j++) {
+          const flipper = physicsScene.flippers[j];
+          if (flipper.select(mousePos)) {
+            flipper.touchIdentifier = 0;
+          } else {
+            flipper.touchIdentifier = null;
+          }
+        }
+      }
+
+      function onMouseUp(event) {
+        for (let i = 0; i < physicsScene.flippers.length; i++) {
+          physicsScene.flippers[i].touchIdentifier = null;
+        }
+      }
+    </script>
+  </body>
+</html>
