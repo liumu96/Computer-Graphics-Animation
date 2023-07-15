@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cloth Simulation</title>
+    <link rel="stylesheet" href="../common/common.css" />
+  </head>
+  <body>
+    <div class="info-container">
+      <h1>Cloth Simulation</h1>
+      <button id="buttonRun" onclick="run()" class="button">Run</button>
+      <button onclick="restart()" class="button">Restart</button>
+      <input type="checkbox" onclick="onShowEdges()" />Show edges
+      <p><span id="numTris">0</span> tris&nbsp;&nbsp;</p>
+      <p><span id="numVerts">0</span> verts&nbsp;&nbsp;</p>
+      <p><span id="ms">0.000</span> ms per frame</p>
+      Bending compliance:
+      <input
+        type="range"
+        min="0"
+        max="10"
+        value="1"
+        id="bendingComplianceSlider"
+        class="slider"
+      />
+    </div>
+    <div id="container"></div>
+
+    <script src="https://unpkg.com/three@0.139.2/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.139.2/examples/js/controls/OrbitControls.js"></script>
+    <script src="../common/vecMath.js"></script>
+    <script src="../common/initThreeScene.js"></script>
+    <script src="./cloth.js"></script>
+    <script src="./ClothMesh.js"></script>
+    <script src="../common/grabber.js"></script>
+    <script>
+      const physicsScene = {
+        gravity: [0.0, -10.0, 0.0],
+        dt: 1.0 / 60.0,
+        numSubsteps: 15,
+        paused: true,
+        showEdges: false,
+        objects: [],
+      };
+      function run() {
+        const button = document.getElementById("buttonRun");
+        if (physicsScene.paused) button.innerHTML = "Stop";
+        else button.innerHTML = "Run";
+        physicsScene.paused = !physicsScene.paused;
+      }
+
+      function restart() {
+        location.reload();
+      }
+
+      function initPhysics() {
+        const mesh = clothMeshes[0];
+
+        const body = new Cloth(mesh, threeScene);
+        physicsScene.objects.push(body);
+        document.getElementById("numTris").innerHTML =
+          mesh.faceTriIds.length / 3;
+        document.getElementById("numVerts").innerHTML =
+          mesh.vertices.length / 3;
+      }
+
+      let timeFrames = 0;
+      let timeSum = 0;
+
+      function simulate() {
+        if (physicsScene.paused) return;
+
+        const startTime = performance.now();
+
+        const sdt = physicsScene.dt / physicsScene.numSubsteps;
+
+        for (let step = 0; step < physicsScene.numSubsteps; step++) {
+          for (let i = 0; i < physicsScene.objects.length; i++) {
+            physicsScene.objects[i].preSolve(sdt, physicsScene.gravity);
+          }
+
+          for (let i = 0; i < physicsScene.objects.length; i++) {
+            physicsScene.objects[i].solve(sdt);
+          }
+
+          for (let i = 0; i < physicsScene.objects.length; i++) {
+            physicsScene.objects[i].postSolve(sdt);
+          }
+        }
+
+        for (let i = 0; i < physicsScene.objects.length; i++) {
+          physicsScene.objects[i].endFrame();
+        }
+
+        grabber.increaseTime(physicsScene.dt);
+
+        const endTime = performance.now();
+        timeSum += endTime - startTime;
+        timeFrames++;
+
+        if (timeFrames > 10) {
+          timeSum /= timeFrames;
+          document.getElementById("ms").innerHTML = timeSum.toFixed(3);
+          timeFrames = 0;
+          timeSum = 0;
+        }
+      }
+
+      document.getElementById("bendingComplianceSlider").oninput = function () {
+        for (let i = 0; i < physicsScene.objects.length; i++) {
+          physicsScene.objects[i].bendingCompliance = this.value;
+        }
+      };
+
+      function onShowEdges() {
+        physicsScene.showEdges = !physicsScene.showEdges;
+
+        for (let i = 0; i < physicsScene.objects.length; i++) {
+          physicsScene.objects[i].edgeMesh.visible = physicsScene.showEdges;
+          physicsScene.objects[i].triMesh.visible = !physicsScene.showEdges;
+        }
+      }
+
+      function update() {
+        simulate();
+        renderer.render(threeScene, camera);
+        requestAnimationFrame(update);
+      }
+
+      initPhysics();
+      update();
+    </script>
+  </body>
+</html>
