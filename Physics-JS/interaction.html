@@ -41,7 +41,7 @@
     <div id="container"></div>
     <script src="https://unpkg.com/three@0.139.2/build/three.min.js"></script>
     <script src="https://unpkg.com/three@0.139.2/examples/js/controls/OrbitControls.js"></script>
-    <script src="./initThreeScene.js"></script>
+    <script src="./common/initThreeScene.js"></script>
     <script src="./grabber.js"></script>
     <script>
       const gPhysicsScene = {
@@ -139,12 +139,6 @@
         container.addEventListener("pointerup", onPointer, false);
       }
 
-      function onWindowResize() {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      }
-
       function run() {
         const button = document.getElementById("buttonRun");
         if (gPhysicsScene.paused) button.innerHTML = "Stop";
@@ -161,7 +155,6 @@
         renderer.render(threeScene, camera);
         requestAnimationFrame(update);
       }
-      onWindowResize();
       initPhysics();
       update();
     </script>

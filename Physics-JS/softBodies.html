@@ -54,8 +54,8 @@
 
     <script src="https://unpkg.com/three@0.139.2/build/three.min.js"></script>
     <script src="https://unpkg.com/three@0.139.2/examples/js/controls/OrbitControls.js"></script>
-    <script src="./initThreeScene.js"></script>
-    <script src="./vecMath.js"></script>
+    <script src="./common/initThreeScene.js"></script>
+    <script src="./common/vecMath.js"></script>
     <script src="./grabber.js"></script>
     <script src="./bunnyMesh.js"></script>
     <script src="./softBodies.js"></script>
@@ -100,12 +100,6 @@
           gPhysicsScene.objects[i].edgeCompliance = this.value * 50.0;
       };
 
-      function onWindowResize() {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      }
-
       function run() {
         const button = document.getElementById("buttonRun");
         if (gPhysicsScene.paused) button.innerHTML = "Stop";
@@ -144,7 +138,6 @@
         requestAnimationFrame(update);
       }
 
-      onWindowResize();
       initPhysics();
       update();
     </script>
