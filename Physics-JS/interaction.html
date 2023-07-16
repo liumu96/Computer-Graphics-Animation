@@ -42,9 +42,9 @@
     <script src="https://unpkg.com/three@0.139.2/build/three.min.js"></script>
     <script src="https://unpkg.com/three@0.139.2/examples/js/controls/OrbitControls.js"></script>
     <script src="./common/initThreeScene.js"></script>
-    <script src="./grabber.js"></script>
+    <script src="./common/grabber.js"></script>
     <script>
-      const gPhysicsScene = {
+      const physicsScene = {
         gravity: new THREE.Vector3(0.0, -10.0, 0.0),
         dt: 1.0 / 60.0,
         worldSize: { x: 1.5, z: 2.5 },
@@ -70,10 +70,10 @@
         simulate() {
           if (this.grabbed) return;
 
-          this.vel.addScaledVector(gPhysicsScene.gravity, gPhysicsScene.dt);
-          this.pos.addScaledVector(this.vel, gPhysicsScene.dt);
+          this.vel.addScaledVector(physicsScene.gravity, physicsScene.dt);
+          this.pos.addScaledVector(this.vel, physicsScene.dt);
 
-          const size = gPhysicsScene.worldSize;
+          const size = physicsScene.worldSize;
 
           if (this.pos.x < -size.x) {
             this.pos.x = -size.x;
@@ -122,28 +122,21 @@
         const pos = new THREE.Vector3(radius, 1.0, radius);
         const vel = new THREE.Vector3();
 
-        gPhysicsScene.objects.push(new Ball(pos, radius, vel));
+        physicsScene.objects.push(new Ball(pos, radius, vel));
       }
 
       function simulate() {
-        if (gPhysicsScene.paused) return;
-        for (var i = 0; i < gPhysicsScene.objects.length; i++)
-          gPhysicsScene.objects[i].simulate();
-        gGrabber.increaseTime(gPhysicsScene.dt);
-      }
-
-      function initGrabber() {
-        gGrabber = new Grabber();
-        container.addEventListener("pointerdown", onPointer, false);
-        container.addEventListener("pointermove", onPointer, false);
-        container.addEventListener("pointerup", onPointer, false);
+        if (physicsScene.paused) return;
+        for (var i = 0; i < physicsScene.objects.length; i++)
+          physicsScene.objects[i].simulate();
+        grabber.increaseTime(physicsScene.dt);
       }
 
       function run() {
         const button = document.getElementById("buttonRun");
-        if (gPhysicsScene.paused) button.innerHTML = "Stop";
+        if (physicsScene.paused) button.innerHTML = "Stop";
         else button.innerHTML = "Run";
-        gPhysicsScene.paused = !gPhysicsScene.paused;
+        physicsScene.paused = !physicsScene.paused;
       }
 
       function restart() {
