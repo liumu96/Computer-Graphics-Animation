@@ -54,14 +54,19 @@
 
     <script src="https://unpkg.com/three@0.139.2/build/three.min.js"></script>
     <script src="https://unpkg.com/three@0.139.2/examples/js/controls/OrbitControls.js"></script>
-    <script src="./common/initThreeScene.js"></script>
-    <script src="./common/vecMath.js"></script>
-    <script src="./grabber.js"></script>
-    <script src="./bunnyMesh.js"></script>
+    <script src="../common/initThreeScene.js"></script>
+    <script src="../common/vecMath.js"></script>
+    <script src="../common/grabber.js"></script>
+    <script src="../MeshDatas/bunnyMesh.js"></script>
     <script src="./softBodies.js"></script>
 
     <script>
-      const gPhysicsScene = {
+      camera.position.set(0, 1, 2);
+      camera.updateMatrixWorld();
+      cameraControl.target = new THREE.Vector3(0.0, 0.5, 0.0);
+      cameraControl.update();
+
+      const physicsScene = {
         gravity: [0.0, -10.0, 0.0],
         dt: 1.0 / 60.0,
         numSubsteps: 10,
@@ -71,40 +76,40 @@
 
       function initPhysics() {
         const body = new SoftBody(bunnyMesh, threeScene);
-        gPhysicsScene.objects.push(body);
+        physicsScene.objects.push(body);
         document.getElementById("numTets").innerHTML = body.numTets;
       }
 
       function simulate() {
-        if (gPhysicsScene.paused) return;
+        if (physicsScene.paused) return;
 
-        const sdt = gPhysicsScene.dt / gPhysicsScene.numSubsteps;
+        const sdt = physicsScene.dt / physicsScene.numSubsteps;
 
-        for (let step = 0; step < gPhysicsScene.numSubsteps; step++) {
-          for (let i = 0; i < gPhysicsScene.objects.length; i++) {
-            gPhysicsScene.objects[i].preSolve(sdt, gPhysicsScene.gravity);
+        for (let step = 0; step < physicsScene.numSubsteps; step++) {
+          for (let i = 0; i < physicsScene.objects.length; i++) {
+            physicsScene.objects[i].preSolve(sdt, physicsScene.gravity);
           }
-          for (let i = 0; i < gPhysicsScene.objects.length; i++) {
-            gPhysicsScene.objects[i].solve(sdt);
+          for (let i = 0; i < physicsScene.objects.length; i++) {
+            physicsScene.objects[i].solve(sdt);
           }
-          for (let i = 0; i < gPhysicsScene.objects.length; i++) {
-            gPhysicsScene.objects[i].postSolve(sdt);
+          for (let i = 0; i < physicsScene.objects.length; i++) {
+            physicsScene.objects[i].postSolve(sdt);
           }
         }
 
-        gGrabber.increaseTime(gPhysicsScene.dt);
+        grabber.increaseTime(physicsScene.dt);
       }
 
       document.getElementById("complianceSlider").oninput = function () {
-        for (let i = 0; i < gPhysicsScene.objects.length; i++)
-          gPhysicsScene.objects[i].edgeCompliance = this.value * 50.0;
+        for (let i = 0; i < physicsScene.objects.length; i++)
+          physicsScene.objects[i].edgeCompliance = this.value * 50.0;
       };
 
       function run() {
         const button = document.getElementById("buttonRun");
-        if (gPhysicsScene.paused) button.innerHTML = "Stop";
+        if (physicsScene.paused) button.innerHTML = "Stop";
         else button.innerHTML = "Run";
-        gPhysicsScene.paused = !gPhysicsScene.paused;
+        physicsScene.paused = !physicsScene.paused;
       }
 
       function restart() {
@@ -112,9 +117,9 @@
       }
 
       function squash() {
-        for (let i = 0; i < gPhysicsScene.objects.length; i++)
-          gPhysicsScene.objects[i].squash();
-        if (!gPhysicsScene.paused) run();
+        for (let i = 0; i < physicsScene.objects.length; i++)
+          physicsScene.objects[i].squash();
+        if (!physicsScene.paused) run();
       }
 
       function newBody() {
@@ -124,11 +129,11 @@
           0.0,
           -2.0 + 4.0 * Math.random()
         );
-        gPhysicsScene.objects.push(body);
+        physicsScene.objects.push(body);
 
         let numTets = 0;
-        for (let i = 0; i < gPhysicsScene.objects.length; i++)
-          numTets += gPhysicsScene.objects[i].numTets;
+        for (let i = 0; i < physicsScene.objects.length; i++)
+          numTets += physicsScene.objects[i].numTets;
         document.getElementById("numTets").innerHTML = numTets;
       }
 

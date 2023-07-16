@@ -1,6 +1,7 @@
 class SoftBody {
   constructor(tetMesh, scene, edgeCompliance = 100.0, volCompliance = 0.0) {
     // physics
+
     this.numParticles = tetMesh.verts.length / 3;
     this.numTets = tetMesh.tetIds.length / 4;
     this.pos = new Float32Array(tetMesh.verts);
@@ -122,7 +123,8 @@ class SoftBody {
   }
 
   solveEdges(compliance, dt) {
-    const alpha = compliance / dt / dt;
+    const alpha = compliance / dt / dt; // alpha / (dt)2
+
     for (let i = 0; i < this.edgeLengths.length; i++) {
       const id0 = this.edgeIds[2 * i];
       const id1 = this.edgeIds[2 * i + 1];
@@ -136,7 +138,7 @@ class SoftBody {
       if (len == 0.0) continue;
       vecScale(this.grads, 0, 1.0 / len);
       const restLen = this.edgeLengths[i];
-      const C = len - restLen;
+      const C = len - restLen; // edge constraint
       const s = -C / (w + alpha);
       vecAdd(this.pos, id0, this.grads, 0, s * w0);
       vecAdd(this.pos, id1, this.grads, 0, -s * w1);
@@ -172,7 +174,7 @@ class SoftBody {
 
       for (let j = 0; j < 4; j++) {
         const id = this.tetIds[4 * i + j];
-        // vecAdd(this.pos, id, this.grads, j, s * this.invMass[id]);
+        vecAdd(this.pos, id, this.grads, j, s * this.invMass[id]);
       }
     }
   }
