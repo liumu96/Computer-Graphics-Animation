@@ -1,6 +1,5 @@
 class Cloth {
   constructor(mesh, scene, bendingCompliance = 1.0) {
-    // particles
     this.numParticles = mesh.vertices.length / 3;
     this.pos = new Float32Array(mesh.vertices);
     this.prevPos = new Float32Array(mesh.vertices);
@@ -8,29 +7,31 @@ class Cloth {
     this.vel = new Float32Array(3 * this.numParticles);
     this.invMass = new Float32Array(this.numParticles);
 
-    // stretching and bending constraints
+    // strerching and bending constraints
     const neighbors = findTriNeighbors(mesh.faceTriIds);
     const numTris = mesh.faceTriIds.length / 3;
     const edgeIds = [];
     const triPairIds = [];
 
     for (let i = 0; i < numTris; i++) {
+      // ith triangle
       for (let j = 0; j < 3; j++) {
-        const id0 = mesh.faceTriIds[3 * i + j];
-        const id1 = mesh.faceTriIds[3 * i + ((j + 1) % 3)];
+        // jth edge of ith triangle
+        const id0 = mesh.faceTriIds[3 * i + j]; // vert0 for edge [ij]
+        const id1 = mesh.faceTriIds[3 * i + ((j + 1) % 3)]; // vert 1 for edge [ij]
 
         // each edge only once
         const n = neighbors[3 * i + j];
         if (n < 0 || id0 < id1) {
+          // no neighbors or the first two edges
           edgeIds.push(id0);
           edgeIds.push(id1);
         }
-
-        // tri pair
+        // tri pair ?? not understand
         if (n >= 0) {
           // opposite ids
-          const ni = Math.floor(n / 3);
-          const nj = n % 3;
+          const ni = Math.floor(n / 3); // the triangle index that neighbor edge in
+          const nj = n % 3; // the local edge index of the neighbor edge
           const id2 = mesh.faceTriIds[3 * i + ((j + 2) % 3)];
           const id3 = mesh.faceTriIds[3 * ni + ((nj + 2) % 3)];
           triPairIds.push(id0);
@@ -72,27 +73,26 @@ class Cloth {
     this.edgeMesh.visible = false;
     scene.add(this.edgeMesh);
 
-    //  visual tri mesh
-    const faceGeometry = new THREE.BufferGeometry();
-    faceGeometry.setAttribute(
+    // visual tri mesh
+    const triGeometry = new THREE.BufferGeometry();
+    triGeometry.setAttribute(
       "position",
       new THREE.BufferAttribute(this.pos, 3)
     );
-    faceGeometry.setIndex(mesh.faceTriIds);
-    const visMaterial = new THREE.MeshPhongMaterial({
+    triGeometry.setIndex(mesh.faceTriIds);
+    var visMaterial = new THREE.MeshPhongMaterial({
       color: 0xff0000,
       side: THREE.DoubleSide,
     });
-    this.triMesh = new THREE.Mesh(faceGeometry, visMaterial);
+    this.triMesh = new THREE.Mesh(triGeometry, visMaterial);
     this.triMesh.castShadow = true;
     this.triMesh.userData = this; // for raycasting
 
     this.triMesh.layers.enable(1);
     scene.add(this.triMesh);
-    faceGeometry.computeVertexNormals();
+    triGeometry.computeVertexNormals();
 
     this.updateMeshes();
-
     this.volIdOrder = [
       [1, 3, 2],
       [0, 2, 3],
@@ -131,15 +131,15 @@ class Cloth {
       );
     }
 
-    for (let i = 0; i < this.bendingLengths; i++) {
+    for (let i = 0; i < this.bendingLengths.length; i++) {
       const id0 = this.bendingIds[4 * i + 2];
-      const id2 = this.bendingIds[4 * i + 3];
+      const id1 = this.bendingIds[4 * i + 3];
       this.bendingLengths[i] = Math.sqrt(
         vecDistSquared(this.pos, id0, this.pos, id1)
       );
     }
 
-    // two attach points
+    // attach
     let minX = Number.MAX_VALUE;
     let maxX = -Number.MAX_VALUE;
     let maxY = -Number.MAX_VALUE;
@@ -162,12 +162,12 @@ class Cloth {
   }
 
   preSolve(dt, gravity) {
-    for (var i = 0; i < this.numParticles; i++) {
+    for (let i = 0; i < this.numParticles; i++) {
       if (this.invMass[i] == 0.0) continue;
       vecAdd(this.vel, i, gravity, 0, dt);
       vecCopy(this.prevPos, i, this.pos, i);
       vecAdd(this.pos, i, this.vel, i, dt);
-      var y = this.pos[3 * i + 1];
+      const y = this.pos[3 * i + 1];
       if (y < 0.0) {
         vecCopy(this.pos, i, this.prevPos, i);
         this.pos[3 * i + 1] = 0.0;
@@ -177,7 +177,7 @@ class Cloth {
 
   solve(dt) {
     this.solveStretching(this.stretchingCompliance, dt);
-    // this.solveBending(this.bendingCompliance, dt);
+    this.solveBending(this.bendingCompliance, dt);
   }
 
   postSolve(dt) {
@@ -256,7 +256,6 @@ class Cloth {
         this.grabId = i;
       }
     }
-
     if (this.grabId >= 0) {
       this.grabInvMass = this.invMass[this.grabId];
       this.invMass[this.grabId] = 0.0;
@@ -264,7 +263,7 @@ class Cloth {
     }
   }
 
-  moveGrabbed(pos, vel) {
+  moveGrabbed(pos) {
     if (this.grabId >= 0) {
       const p = [pos.x, pos.y, pos.z];
       vecCopy(this.pos, this.grabId, p, 0);
@@ -283,14 +282,13 @@ class Cloth {
 
 function findTriNeighbors(triIds) {
   // create common edges
+  const edges = [];
+  const numTris = triIds.length / 3;
 
-  var edges = [];
-  var numTris = triIds.length / 3;
-
-  for (var i = 0; i < numTris; i++) {
-    for (var j = 0; j < 3; j++) {
-      var id0 = triIds[3 * i + j];
-      var id1 = triIds[3 * i + ((j + 1) % 3)];
+  for (let i = 0; i < numTris; i++) {
+    for (let j = 0; j < 3; j++) {
+      const id0 = triIds[3 * i + j];
+      const id1 = triIds[3 * i + ((j + 1) % 3)];
       edges.push({
         id0: Math.min(id0, id1),
         id1: Math.max(id0, id1),
@@ -300,22 +298,20 @@ function findTriNeighbors(triIds) {
   }
 
   // sort so common edges are next to each other
+  edges.sort((a, b) => {
+    return a.id0 < b.id0 || (a.id0 == b.id0 && a.id1 < b.id1) ? -1 : 1;
+  });
 
-  edges.sort((a, b) =>
-    a.id0 < b.id0 || (a.id0 == b.id0 && a.id1 < b.id1) ? -1 : 1
-  );
-
-  // find matchign edges
-
-  neighbors = new Float32Array(3 * numTris);
+  // find matching edges
+  const neighbors = new Float32Array(3 * numTris);
   neighbors.fill(-1); // open edge
 
-  var nr = 0;
+  let nr = 0;
   while (nr < edges.length) {
-    var e0 = edges[nr];
+    const e0 = edges[nr];
     nr++;
     if (nr < edges.length) {
-      var e1 = edges[nr];
+      const e1 = edges[nr];
       if (e0.id0 == e1.id0 && e0.id1 == e1.id1) {
         neighbors[e0.edgeNr] = e1.edgeNr;
         neighbors[e1.edgeNr] = e0.edgeNr;
@@ -323,6 +319,5 @@ function findTriNeighbors(triIds) {
       nr++;
     }
   }
-
   return neighbors;
 }

@@ -43,16 +43,6 @@
         showEdges: false,
         objects: [],
       };
-      function run() {
-        const button = document.getElementById("buttonRun");
-        if (physicsScene.paused) button.innerHTML = "Stop";
-        else button.innerHTML = "Run";
-        physicsScene.paused = !physicsScene.paused;
-      }
-
-      function restart() {
-        location.reload();
-      }
 
       function initPhysics() {
         const mesh = clothMeshes[0];
@@ -114,12 +104,22 @@
       };
 
       function onShowEdges() {
-        physicsScene.showEdges = !physicsScene.showEdges;
-
-        for (let i = 0; i < physicsScene.objects.length; i++) {
-          physicsScene.objects[i].edgeMesh.visible = physicsScene.showEdges;
-          physicsScene.objects[i].triMesh.visible = !physicsScene.showEdges;
+        gPhysicsScene.showEdges = !gPhysicsScene.showEdges;
+        for (let i = 0; i < gPhysicsScene.objects.length; i++) {
+          gPhysicsScene.objects[i].edgeMesh.visible = gPhysicsScene.showEdges;
+          gPhysicsScene.objects[i].triMesh.visible = !gPhysicsScene.showEdges;
         }
+      }
+
+      function run() {
+        const button = document.getElementById("buttonRun");
+        if (physicsScene.paused) button.innerHTML = "Stop";
+        else button.innerHTML = "Run";
+        physicsScene.paused = !physicsScene.paused;
+      }
+
+      function restart() {
+        location.reload();
       }
 
       function update() {
