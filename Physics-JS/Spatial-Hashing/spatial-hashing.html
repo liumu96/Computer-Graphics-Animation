@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      .button {
+        background-color: #606060;
+        border: none;
+        color: white;
+        padding: 10px 32px;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 5px;
+      }
+
+      .info-container {
+        position: absolute;
+        padding-left: 20px;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="info-container">
+      <h1>Spatial Hashing</h1>
+      <button id="buttonRun" onclick="run()" class="button">Run</button>
+      <button onclick="restart()" class="button">Restart</button>
+      <input type="checkbox" onclick="onShowColl()" /> Show collisions
+      <p>
+        <span id="particleCount">0</span> particles,
+        <span id="ms">0.000</span> ms per frame
+      </p>
+    </div>
+    <div id="container"></div>
+    <script src="https://unpkg.com/three@0.139.2/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.139.2/examples/js/controls/OrbitControls.js"></script>
+    <script src="../common/initThreeScene.js"></script>
+    <script src="../common/vecMath.js"></script>
+    <script src="./balls.js"></script>
+    <script src="./hash.js"></script>
+    <script>
+      camera.position.set(-2, 2.3, 3.6);
+      camera.updateMatrixWorld();
+      cameraControl.target = new THREE.Vector3(0.0, 0.5, 0.0);
+      cameraControl.update();
+
+      const physicsScene = {
+        gravity: [0.0, 0.0, 0.0],
+        dt: 1.0 / 60.0,
+        worldBounds: [-1.0, 0.0, -1.0, 1.0, 2.0, 1.0],
+        paused: true,
+        balls: null,
+        ballRadius: 0.025,
+      };
+      const spacing = 3.0 * physicsScene.ballRadius;
+
+      function onShowColl() {
+        if (physicsScene.balls)
+          physicsScene.balls.showCollisions =
+            !physicsScene.balls.showCollisions;
+      }
+
+      function initPhysics(scene) {
+        const velRand = 0.2;
+
+        const s = physicsScene.worldBounds;
+
+        const numX = Math.floor((s[3] - s[0] - 2.0 * spacing) / spacing);
+        const numY = Math.floor((s[4] - s[1] - 2.0 * spacing) / spacing);
+        const numZ = Math.floor((s[5] - s[2] - 2.0 * spacing) / spacing);
+
+        const pos = new Float32Array(3 * numX * numY * numZ);
+        const vel = new Float32Array(3 * numX * numY * numZ);
+        vel.fill(0.0);
+
+        // init position and velocity
+        for (let xi = 0; xi < numX; xi++) {
+          for (let yi = 0; yi < numY; yi++) {
+            for (let zi = 0; zi < numZ; zi++) {
+              const x = 3 * ((xi * numY + yi) * numZ + zi);
+              const y = x + 1;
+              const z = x + 2;
+              pos[x] = s[0] + spacing + xi * spacing;
+              pos[y] = s[1] + spacing + yi * spacing;
+              pos[z] = s[2] + spacing + zi * spacing;
+
+              vel[x] = -velRand + 2.0 * velRand * Math.random();
+              vel[y] = -velRand + 2.0 * velRand * Math.random();
+              vel[z] = -velRand + 2.0 * velRand * Math.random();
+            }
+          }
+        }
+
+        physicsScene.balls = new Balls(
+          physicsScene.ballRadius,
+          pos,
+          vel,
+          threeScene
+        );
+
+        document.getElementById("particleCount").innerHTML = pos.length / 3;
+      }
+
+      let timeFrames = 0;
+      let timeSum = 0;
+
+      function simulate() {
+        if (physicsScene.paused) return;
+
+        const startTime = performance.now();
+
+        physicsScene.balls.simulate(
+          physicsScene.dt,
+          physicsScene.gravity,
+          physicsScene.worldBounds
+        );
+
+        const endTime = performance.now();
+        timeSum += endTime - startTime;
+        timeFrames++;
+
+        if (timeFrames > 10) {
+          timeSum /= timeFrames;
+          document.getElementById("ms").innerHTML = timeSum.toFixed(3);
+          timeFrames = 0;
+          timeSum = 0;
+        }
+      }
+
+      // render
+
+      function run() {
+        const button = document.getElementById("buttonRun");
+        if (physicsScene.paused) button.innerHTML = "Stop";
+        else button.innerHTML = "Run";
+        physicsScene.paused = !physicsScene.paused;
+      }
+
+      function restart() {
+        location.reload();
+      }
+
+      function update() {
+        simulate();
+        renderer.render(threeScene, camera);
+        cameraControl.update();
+
+        requestAnimationFrame(update);
+      }
+
+      initPhysics();
+      update();
+    </script>
+  </body>
+</html>
