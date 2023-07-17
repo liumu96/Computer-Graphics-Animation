@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Soft Body Skinning Simulation</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      .button {
+        background-color: #606060;
+        border: none;
+        color: white;
+        padding: 10px 32px;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 5px;
+      }
+
+      .info-container {
+        position: absolute;
+        padding-left: 20px;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="info-container">
+      <h1>Soft Body Skinning Simulation</h1>
+      <button id="buttonRun" onclick="run()" class="button">Run</button>
+      <button onclick="restart()" class="button">Restart</button>
+      <button onclick="squash()" class="button">Squash</button>
+      <input type="checkbox" onclick="onShowTets()" /> Show tets
+      <p>
+        <span id="numTets">0</span> tets&nbsp;&nbsp;
+        <span id="numTris">0</span> tris&nbsp;&nbsp;
+        <span id="numVerts">0</span> verts&nbsp;&nbsp;
+      </p>
+      EdgeCompliance:
+      <input
+        type="range"
+        min="0"
+        max="10"
+        value="0"
+        id="edgeComplianceSlider"
+        class="slider"
+      />
+      VolCompliance:
+      <input
+        type="range"
+        min="0"
+        max="10"
+        value="0"
+        id="volComplianceSlider"
+        class="slider"
+      />
+
+      <br /><br />
+    </div>
+
+    <div id="container"></div>
+
+    <script src="https://unpkg.com/three@0.139.2/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.139.2/examples/js/controls/OrbitControls.js"></script>
+    <script src="../common/initThreeScene.js"></script>
+    <script src="../common/vecMath.js"></script>
+    <script src="../common/hash.js"></script>
+    <script src="../common/grabber.js"></script>
+    <script src="./soft-body.js"></script>
+    <script src="../MeshDatas/dragonTetMesh.js"></script>
+    <script src="../MeshDatas/dragonVisMesh.js"></script>
+
+    <script>
+      camera.position.set(0, 1.5, 3);
+      camera.updateMatrixWorld();
+      cameraControl.target = new THREE.Vector3(0.0, 0.8, 0.0);
+      cameraControl.update();
+
+      const physicsScene = {
+        gravity: [0.0, -10.0, 0.0],
+        dt: 1.0 / 60.0,
+        numSubsteps: 10,
+        paused: true,
+        showTets: false,
+        objects: [],
+      };
+
+      function onShowTets() {
+        physicsScene.showTets = !physicsScene.showTets;
+        for (let i = 0; i < physicsScene.objects.length; i++) {
+          physicsScene.objects[i].tetMesh.visible = physicsScene.showTets;
+        }
+      }
+
+      function initPhysics() {
+        const body = new SoftBody(dragonTetMesh, dragonVisMesh, threeScene);
+        physicsScene.objects.push(body);
+        document.getElementById("numTets").innerHTML = body.numTets;
+        document.getElementById("numTris").innerHTML =
+          dragonVisMesh.triIds.length / 3;
+        document.getElementById("numVerts").innerHTML =
+          dragonVisMesh.verts.length / 3;
+      }
+
+      function simulate() {
+        if (physicsScene.paused) return;
+
+        const sdt = physicsScene.dt / physicsScene.numSubsteps;
+
+        for (let step = 0; step < physicsScene.numSubsteps; step++) {
+          for (let i = 0; i < physicsScene.objects.length; i++) {
+            physicsScene.objects[i].preSolve(sdt, physicsScene.gravity);
+          }
+          for (let i = 0; i < physicsScene.objects.length; i++) {
+            physicsScene.objects[i].solve(sdt);
+          }
+          for (let i = 0; i < physicsScene.objects.length; i++) {
+            physicsScene.objects[i].postSolve(sdt);
+          }
+        }
+
+        for (let i = 0; i < physicsScene.objects.length; i++) {
+          physicsScene.objects[i].endFrame();
+        }
+
+        grabber.increaseTime(physicsScene.dt);
+      }
+
+      document.getElementById("edgeComplianceSlider").oninput = function () {
+        for (let i = 0; i < physicsScene.objects.length; i++)
+          physicsScene.objects[i].edgeCompliance = this.value * 10.0;
+      };
+      document.getElementById("volComplianceSlider").oninput = function () {
+        for (let i = 0; i < physicsScene.objects.length; i++)
+          physicsScene.objects[i].volCompliance = this.value * 10.0;
+      };
+
+      function run() {
+        const button = document.getElementById("buttonRun");
+        if (physicsScene.paused) button.innerHTML = "Stop";
+        else button.innerHTML = "Run";
+        physicsScene.paused = !physicsScene.paused;
+      }
+
+      function restart() {
+        location.reload();
+      }
+
+      function squash() {
+        for (let i = 0; i < physicsScene.objects.length; i++)
+          physicsScene.objects[i].squash();
+        if (!physicsScene.paused) run();
+      }
+
+      function update() {
+        simulate();
+        renderer.render(threeScene, camera);
+        requestAnimationFrame(update);
+      }
+
+      initPhysics();
+      update();
+    </script>
+  </body>
+</html>
