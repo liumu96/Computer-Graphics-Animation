@@ -1,11 +1,29 @@
+/**
+ * Hash table for self collision of the Cloth objec
+ */
 class Hash {
   constructor(spacing, maxNumObjects) {
     this.spacing = spacing;
-    this.tableSize = 2 * maxNumObjects;
+    this.tableSize = 5 * maxNumObjects;
+
+    // Here, cellStart means where to start looking in cellEntries
+    // Add +1 for guard
     this.cellStart = new Int32Array(this.tableSize + 1);
-    this.cellEntries = new Int32Array(maxNumObjects);
+
+    // Here, cellEntries are the indices of the particles in entire particle list
+    this.cellEntries = new Int32Array(maxNumObjects); // particle lookup array
     this.queryIds = new Int32Array(maxNumObjects);
     this.querySize = 0;
+
+    this.maxNumObjects = maxNumObjects;
+
+    // Keep track of where to first index into adjIds
+    // so firstAdjId[id] = idx for adjIds
+    this.firstAdjId = new Int32Array(maxNumObjects + 1);
+
+    // All particle ids adjacent to a particular id packed into a dense array
+    // use firstAdd[id] to access
+    this.adjIds = new Int32Array(10 * maxNumObjects);
   }
 
   hashCoords(xi, yi, zi) {
@@ -25,6 +43,10 @@ class Hash {
     );
   }
 
+  /**
+   * Create the spatial hash table data structure
+   * @param {*} pos
+   */
   create(pos) {
     const numObjects = Math.min(pos.length / 3, this.cellEntries.length);
 
@@ -77,5 +99,32 @@ class Hash {
         }
       }
     }
+  }
+
+  queryAll(pos, maxDist) {
+    let num = 0;
+    const maxDist2 = maxDist * maxDist;
+
+    for (let i = 0; i < this.maxNumObjects; i++) {
+      const id0 = i;
+      this.firstAdjId[id0] = num;
+      this.query(pos, id0, maxDist);
+
+      for (let j = 0; j < this.querySize; j++) {
+        const id1 = this.queryIds[j];
+        if (id1 >= id0) continue;
+        const dist2 = vecDistSquared(pos, id0, pos, id1);
+        if (dist2 > maxDist2) continue;
+
+        if (num >= this.adjIds.length) {
+          const newIds = new Int32Array(2 * num); // dynamic array
+          newIds.set(this.adjIds);
+          this.adjIds = newIds;
+        }
+
+        this.adjIds[num++] = id1;
+      }
+    }
+    this.firstAdjId[(this.maxNumObjects = num)];
   }
 }
